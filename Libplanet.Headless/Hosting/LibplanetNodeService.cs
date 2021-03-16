@@ -113,8 +113,8 @@ namespace Libplanet.Headless.Hosting
             if (Properties.Confirmations > 0)
             {
                 IComparer<BlockPerception> comparer = blockPolicy.CanonicalChainComparer;
-                renderers = renderers.Select(r => r is IActionRenderer<T> ar
-                    ? new DelayedActionRenderer<T>(ar, comparer, Store, Properties.Confirmations, 50)
+                renderers = renderers.Select<IRenderer<T>, IRenderer<T>>(r => r is IActionRenderer<T> ar
+                    ? (IRenderer<T>)new FilteredActionRenderer(new DelayedActionRenderer<T>(ar, comparer, Store, Properties.Confirmations, 50))
                     : new DelayedRenderer<T>(r, comparer, Store, Properties.Confirmations)
                 );
 
@@ -147,7 +147,7 @@ namespace Libplanet.Headless.Hosting
             IEnumerable<IceServer> shuffledIceServers = null;
             if (!(iceServers is null))
             {
-                var rand = new Random();
+                var rand = new System.Random();
                 shuffledIceServers = iceServers.OrderBy(x => rand.Next());
             }
 
@@ -544,6 +544,88 @@ namespace Libplanet.Headless.Hosting
 
             (Store as IDisposable)?.Dispose();
             Log.Debug("Store disposed.");
+        }
+
+        private class FilteredActionRenderer : IActionRenderer<T>
+        {
+            private readonly DelayedActionRenderer<T> _impl;
+
+            public FilteredActionRenderer(DelayedActionRenderer<T> delayedActionRenderer)
+            {
+                this._impl = delayedActionRenderer;
+            }
+
+            public void RenderAction(IAction action, IActionContext context, IAccountStateDelta nextStates)
+            {
+                IAccountStateDelta delta;
+                if (nextStates is AccountStateDeltaImpl asdi)
+                {
+                    delta = new AccountStateDeltaImpl(
+                        (addr) => nextStates.GetState(addr),
+                        (addr, currency) => asdi.GetBalance(addr, currency),
+                        context.Signer,
+                        asdi.GetUpdatedStates().Where(kv => kv.Key != default).ToImmutableDictionary(),
+                        asdi.GetUpdatedBalances().ToImmutableDictionary(kv => kv.Key, kv => kv.Value.RawValue)
+                    );
+                }
+                else
+                {
+                    delta = nextStates;
+                }
+                
+                ((IActionRenderer<T>)_impl).RenderAction(action, context, delta);
+            }
+
+            public void RenderActionError(IAction action, IActionContext context, Exception exception)
+            {
+                ((IActionRenderer<T>)_impl).RenderActionError(action, context, exception);
+            }
+
+            public void RenderBlock(Block<T> oldTip, Block<T> newTip)
+            {
+                ((IRenderer<T>)_impl).RenderBlock(oldTip, newTip);
+            }
+
+            public void RenderBlockEnd(Block<T> oldTip, Block<T> newTip)
+            {
+                ((IActionRenderer<T>)_impl).RenderBlockEnd(oldTip, newTip);
+            }
+
+            public void RenderReorg(Block<T> oldTip, Block<T> newTip, Block<T> branchpoint)
+            {
+                ((IRenderer<T>)_impl).RenderReorg(oldTip, newTip, branchpoint);
+            }
+
+            public void RenderReorgEnd(Block<T> oldTip, Block<T> newTip, Block<T> branchpoint)
+            {
+                ((IRenderer<T>)_impl).RenderReorgEnd(oldTip, newTip, branchpoint);
+            }
+
+            public void UnrenderAction(IAction action, IActionContext context, IAccountStateDelta nextStates)
+            {
+                IAccountStateDelta delta;
+                if (nextStates is AccountStateDeltaImpl asdi)
+                {
+                    delta = new AccountStateDeltaImpl(
+                        (addr) => nextStates.GetState(addr),
+                        (addr, currency) => asdi.GetBalance(addr, currency),
+                        context.Signer,
+                        asdi.GetUpdatedStates().Where(kv => kv.Key != default).ToImmutableDictionary(),
+                        asdi.GetUpdatedBalances().ToImmutableDictionary(kv => kv.Key, kv => kv.Value.RawValue)
+                    );
+                }
+                else
+                {
+                    delta = nextStates;
+                }
+
+                ((IActionRenderer<T>)_impl).UnrenderAction(action, context, delta);
+            }
+
+            public void UnrenderActionError(IAction action, IActionContext context, Exception exception)
+            {
+                ((IActionRenderer<T>)_impl).UnrenderActionError(action, context, exception);
+            }
         }
     }
 }

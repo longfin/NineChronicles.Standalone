@@ -178,11 +178,12 @@ namespace Libplanet.Headless.Hosting
 
         public virtual async Task StartAsync(CancellationToken cancellationToken)
         {
-            if (!cancellationToken.IsCancellationRequested && !_stopRequested)
+            bool preload = true;
+            while (!cancellationToken.IsCancellationRequested && !_stopRequested)
             {
                 var tasks = new List<Task>
                 {
-                    StartSwarm(true, cancellationToken),
+                    StartSwarm(preload, cancellationToken),
                     CheckMessage(Properties.MessageTimeout, cancellationToken),
                     CheckTip(Properties.TipTimeout, cancellationToken)
                 };
@@ -191,7 +192,16 @@ namespace Libplanet.Headless.Hosting
                     tasks.Add(CheckDemand(Properties.DemandBuffer, cancellationToken));
                     tasks.Add(CheckPeerTable(cancellationToken));
                 }
-                await await Task.WhenAny(tasks);
+                await await Task.WhenAny(tasks); 
+                preload = false;
+                foreach (var t in tasks)
+                {
+                    if (t.IsFaulted && t.Exception is { } exc)
+                    {
+                        Log.Error(exc, "Exception occurred: [{exc}]", exc);
+                    }
+                }
+                await Task.Delay(TimeSpan.FromSeconds(15), cancellationToken);
             }
         }
 

@@ -59,7 +59,7 @@ namespace NineChronicles.Headless
 
             _blockRenderer.EveryBlock().Subscribe(
                 async pair =>
-                    await _client.BroadcastRenderBlockAsync(
+                    await _client?.BroadcastRenderBlockAsync(
                         pair.OldTip.Header.Serialize(),
                         pair.NewTip.Header.Serialize()
                     ),
@@ -68,7 +68,7 @@ namespace NineChronicles.Headless
 
             _blockRenderer.EveryReorg().Subscribe(
                 async ev =>
-                    await _client.ReportReorgAsync(
+                    await _client?.ReportReorgAsync(
                         ev.OldTip.Serialize(),
                         ev.NewTip.Serialize(),
                         ev.Branchpoint.Serialize()
@@ -78,7 +78,7 @@ namespace NineChronicles.Headless
 
             _blockRenderer.EveryReorgEnd().Subscribe(
                 async ev =>
-                    await _client.ReportReorgEndAsync(
+                    await _client?.ReportReorgEndAsync(
                         ev.OldTip.Serialize(),
                         ev.NewTip.Serialize(),
                         ev.Branchpoint.Serialize()
@@ -98,7 +98,7 @@ namespace NineChronicles.Headless
                     try
                     {
                         formatter.Serialize(df, ev);
-                        await _client.BroadcastRenderAsync(c.ToArray());
+                        await _client?.BroadcastRenderAsync(c.ToArray());
                     }
                     catch (SerializationException se)
                     {
@@ -126,7 +126,7 @@ namespace NineChronicles.Headless
                     try
                     {
                         formatter.Serialize(df, ev);
-                        await _client.BroadcastUnrenderAsync(c.ToArray());
+                        await _client?.BroadcastUnrenderAsync(c.ToArray());
                     }
                     catch (SerializationException se)
                     {
@@ -146,7 +146,7 @@ namespace NineChronicles.Headless
                 async tuple =>
                 {
                     var (code, message) = tuple;
-                    await _client.ReportExceptionAsync((int)code, message);
+                    await _client?.ReportExceptionAsync((int)code, message);
                 },
                 stoppingToken
             );
@@ -156,11 +156,11 @@ namespace NineChronicles.Headless
                 {
                     if (isPreloadStarted)
                     {
-                        await _client.PreloadStartAsync();
+                        await _client?.PreloadStartAsync();
                     }
                     else
                     {
-                        await _client.PreloadEndAsync();
+                        await _client?.PreloadEndAsync();
                     }
                 },
                 stoppingToken
@@ -169,7 +169,9 @@ namespace NineChronicles.Headless
 
         public override async Task StopAsync(CancellationToken cancellationToken)
         {
+            Log.Debug($"{nameof(ActionEvaluationPublisher.StopAsync)}() called.");
             await _client?.DisposeAsync();
+            _client = null;
             await base.StopAsync(cancellationToken);
         }
 

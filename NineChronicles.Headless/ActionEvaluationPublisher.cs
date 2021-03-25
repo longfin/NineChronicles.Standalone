@@ -52,7 +52,15 @@ namespace NineChronicles.Headless
         {
             await Task.Delay(1000, stoppingToken);
             _client = StreamingHubClient.Connect<IActionEvaluationHub, IActionEvaluationHubReceiver>(
-                new Channel(_host, _port, ChannelCredentials.Insecure),
+                new Channel(
+                    _host, 
+                    _port, 
+                    ChannelCredentials.Insecure,
+                    new[]
+                    {
+                        new ChannelOption("grpc.max_send_message_length", -1)
+                    }
+                ),
                 null
             );
             await _client.JoinAsync();

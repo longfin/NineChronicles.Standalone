@@ -170,8 +170,6 @@ namespace NineChronicles.Headless
         public override async Task StopAsync(CancellationToken cancellationToken)
         {
             Log.Debug($"{nameof(ActionEvaluationPublisher.StopAsync)}() called.");
-            await _client?.DisposeAsync();
-            _client = null;
             await base.StopAsync(cancellationToken);
         }
 

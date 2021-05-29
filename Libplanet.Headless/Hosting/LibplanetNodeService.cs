@@ -20,6 +20,7 @@ using Libplanet.Store.Trie;
 using Microsoft.Extensions.Hosting;
 using NineChronicles.RPC.Shared.Exceptions;
 using Nito.AsyncEx;
+using RocksDbSharp;
 using Serilog;
 using Serilog.Events;
 
@@ -261,6 +262,8 @@ namespace Libplanet.Headless.Hosting
             IStore store = null;
             if (type == "rocksdb")
             {
+                MigrateChainIndexDb(path);
+
                 try
                 {
                     store = new RocksDBStore.RocksDBStore(
@@ -614,6 +617,66 @@ namespace Libplanet.Headless.Hosting
 
             (Store as IDisposable)?.Dispose();
             Log.Debug("Store disposed.");
+        }
+
+        private void MigrateChainIndexDb(string path)
+        {
+            byte[] indexKeyPrefix = { (byte)'I' };
+            byte[] txNonceKeyPrefix = { (byte)'N' };
+            byte[] indexCountKeyPrefix = { (byte)'c' };
+            byte[] canonicalChainIdIdKey = { (byte)'C' };
+            byte[] chainIdKeyPrefix = { (byte)'h' };
+
+            string chainDbPath = Path.Join(path, "chain");
+
+            var option = new DbOptions();
+            var columnFamilies = new ColumnFamilies();
+            foreach (string cfName in RocksDb.ListColumnFamilies(option, chainDbPath))
+            {
+                columnFamilies.Add(cfName, option);
+            }
+            using RocksDb chainDb = RocksDb.Open(option, chainDbPath, columnFamilies);
+            if (chainDb.Get(canonicalChainIdIdKey) is { } canonIdBytes &&
+                chainDb.Get(chainIdKeyPrefix.Concat(canonIdBytes).ToArray()) is null)
+            {
+                Guid canonId = new Guid(canonIdBytes);
+                ColumnFamilyHandle cf = chainDb.GetColumnFamily(canonId.ToString());
+                using var batch = new WriteBatch();
+
+                byte[] newIndexKeyPrefix = indexKeyPrefix.Concat(canonIdBytes).ToArray();
+                byte[] newIndexCountKey = indexCountKeyPrefix.Concat(canonIdBytes).ToArray();
+                byte[] newTxNonceKeyPrefix = txNonceKeyPrefix.Concat(canonIdBytes).ToArray();
+                byte[] newChainIdKey = chainIdKeyPrefix.Concat(canonIdBytes).ToArray();
+
+                Iterator it = chainDb.NewIterator(cf);
+
+                // Migrate chain indexes
+                for (it.Seek(indexKeyPrefix); it.Valid() && it.Key().StartsWith(indexKeyPrefix); it.Next())
+                {
+                    var key = newIndexKeyPrefix.Concat(it.Key().Skip(indexKeyPrefix.Length)).ToArray();
+                    batch.Put(key, it.Value());
+                }
+
+                // Migrate index count
+                batch.Put(newIndexCountKey, chainDb.Get(indexCountKeyPrefix, cf));
+
+                it.SeekToFirst();
+
+                // Migrate tx nonces
+                for (it.Seek(txNonceKeyPrefix); it.Valid() && it.Key().StartsWith(txNonceKeyPrefix); it.Next())
+                {
+                    var key = newTxNonceKeyPrefix.Concat(it.Key().Skip(txNonceKeyPrefix.Length)).ToArray();
+                    batch.Put(key, it.Value());
+                }
+
+                it.Dispose();
+
+                // Mark chainId
+                batch.Put(newChainIdKey, canonIdBytes);
+
+                chainDb.Write(batch);
+                chainDb.DropColumnFamily(canonId.ToString());
+            }
         }
     }
 }

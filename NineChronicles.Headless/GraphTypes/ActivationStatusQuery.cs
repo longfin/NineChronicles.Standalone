@@ -45,8 +45,7 @@ namespace NineChronicles.Headless.GraphTypes
                         {
                             var activatedAccountsState = new ActivatedAccountsState(asDict);
                             var activatedAccounts = activatedAccountsState.Accounts;
-                            return activatedAccounts.Count == 0
-                                   || activatedAccounts.Contains(address);
+                            return true;
                         }
 
                         return true;

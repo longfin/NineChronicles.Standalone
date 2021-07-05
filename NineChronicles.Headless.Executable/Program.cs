@@ -280,7 +280,7 @@ namespace NineChronicles.Headless.Executable
                         storePath,
                         100,
                         iceServerStrings,
-                        peerStrings,
+                        null,
                         trustedAppProtocolVersionSigners,
                         noMiner,
                         workers: workers,
@@ -289,7 +289,7 @@ namespace NineChronicles.Headless.Executable
                         messageTimeout: messageTimeout,
                         tipTimeout: tipTimeout,
                         demandBuffer: demandBuffer,
-                        staticPeerStrings: staticPeerStrings,
+                        staticPeerStrings: null,
                         preload: !skipPreload,
                         minimumBroadcastTarget: minimumBroadcastTarget
                     );

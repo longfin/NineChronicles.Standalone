@@ -266,7 +266,7 @@ namespace NineChronicles.Headless
             if (NodeService.BlockChain?.GetState(AuthorizedMinersState.Address) is Dictionary ams &&
                 blockPolicy is BlockPolicy bp)
             {
-                bp.AuthorizedMinersState = new AuthorizedMinersState(ams);
+                // bp.AuthorizedMinersState = new AuthorizedMinersState(ams);
             }
 
             if (authorizedMiner && blockPolicy is BlockPolicy {AuthorizedMinersState: null})
